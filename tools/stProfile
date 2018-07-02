@@ -1,0 +1,29 @@
+
+# New environment setting added by ShenTong DBMS on Tue Dec 27 13:31:03 CST 2016 1.
+# The unmodified version of this file is saved in /etc/profile1397229588.
+# Do NOT modify these lines; they are used to uninstall.
+SZ_OSCAR_HOME=/opt/ShenTong
+export SZ_OSCAR_HOME
+# End comments by InstallAnywhere on Tue Dec 27 13:31:03 CST 2016 1.
+
+# New environment setting added by ShenTong DBMS on Tue Dec 27 13:31:03 CST 2016 4.
+# The unmodified version of this file is saved in /etc/profile1397229588.
+# Do NOT modify these lines; they are used to uninstall.
+PATH="/opt/ShenTong/bin:${PATH}"
+export PATH
+# End comments by InstallAnywhere on Tue Dec 27 13:31:03 CST 2016 4.
+
+# New environment setting added by ShenTong DBMS on Tue Dec 27 13:31:03 CST 2016 7.
+# The unmodified version of this file is saved in /etc/profile1397229588.
+# Do NOT modify these lines; they are used to uninstall.
+LD_LIBRARY_PATH=/opt/ShenTong/bin
+export LD_LIBRARY_PATH
+# End comments by InstallAnywhere on Tue Dec 27 13:31:03 CST 2016 7.
+
+# New environment setting added by ShenTong DBMS on Tue Dec 27 13:31:03 CST 2016 10.
+# The unmodified version of this file is saved in /etc/profile1397229588.
+# Do NOT modify these lines; they are used to uninstall.
+LD_LIBRARY_PATH="/opt/ShenTong/bin:/opt/ShenTong/jre/lib/amd64:${LD_LIBRARY_PATH}"
+export LD_LIBRARY_PATH
+# End comments by InstallAnywhere on Tue Dec 27 13:31:03 CST 2016 10.
+

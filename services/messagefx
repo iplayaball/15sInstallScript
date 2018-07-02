@@ -1,0 +1,169 @@
+#!/bin/bash
+#chkconfig: 2345 71 18
+#description: messagefx 
+
+#alias grep='grep --color=auto'
+#alias egrep='egrep --color=auto'
+
+serverName='messagefx'
+grepKey='Message/1409message.jar'
+logFile=/mnt/messagefx.log
+serverPath=/home/fx/Message/config
+
+##函数
+function redEcho(){
+    echo -e "\033[0;31;1m$1\033[0m"
+}
+
+function grepProcess(){
+    ps -eo pid,lstart,etime,args |grep -v grep |grep -w $grepKey
+}
+
+function grepProcess_waitApp(){
+	ps -eo pid,lstart,etime,args |grep -v grep |egrep "startMessage_waitApp.sh $serverPath $logFile"
+}
+
+
+#检测进程是否存在
+function hasPid(){
+    pid=`grepProcess |awk '{print$1}'`
+	#echo "process id: $pid"
+    if [ "$pid" == "" ]; then
+        return 1
+    else
+        return 0
+    fi
+}
+
+function hasPid_waitApp(){
+    pid=`grepProcess_waitApp |awk '{print$1}'`
+	#echo "wprocess id: $pid"
+    if [ "$pid" == "" ]; then
+        return 1
+    else
+        return 0
+    fi
+}
+
+function viewPort(){
+    if hasPid; then
+		netstat -anput |grep -w $pid 
+	else
+        echo "$serverName process not exist"
+	fi
+}
+
+function status(){
+	grepProcess_waitApp
+    if hasPid; then
+        echo "$serverName is `redEcho running`"
+		grepProcess
+		echo "log file: $logFile"
+	else
+        echo "$serverName process not exist"
+	fi
+}
+
+stop_waitApp(){
+    if hasPid_waitApp; then
+        kill $pid
+        sleep 2
+        if hasPid_waitApp; then
+            kill -9 $pid
+            sleep 3
+            if hasPid_waitApp; then
+                echo "$serverName stop fail"
+                exit 3
+            fi
+        fi
+    fi
+}
+
+function stop(){
+	stop_waitApp
+
+    if hasPid; then
+        kill $pid
+        sleep 2
+        if hasPid; then
+            kill -9 $pid
+            sleep 3
+            if hasPid; then
+                echo "$serverName stop fail"
+                exit 3
+            fi
+        fi
+        echo "$serverName stop success"
+    else
+        echo "$serverName process not exist"
+    fi
+}
+
+function start(){
+    if hasPid; then
+		stop_waitApp
+
+        echo "$serverName already running"
+		status
+	else
+		if hasPid_waitApp; then
+			echo "$serverName start fail"
+			echo "$serverName wait app start"
+			exit 3
+		fi
+		sh $serverPath/startMessage_waitApp.sh $serverPath $logFile &
+		sleep 3
+		if hasPid; then
+			echo "$serverName start success"
+			status
+		else
+			echo "$serverName start fail"
+		fi
+	fi
+}
+
+function fstart(){
+	stop_waitApp
+
+    if hasPid; then
+        echo "$serverName already running"
+		status
+	else
+		. /etc/profile
+		sh $serverPath/start.sh &>>$logFile
+		sleep 3
+		if hasPid; then
+			echo "$serverName start success"
+			status
+		else
+			echo "$serverName start fail"
+		fi
+	fi
+}
+
+
+case "$1" in
+	start)
+	start
+;;
+	fstart)
+	fstart
+;;
+	stop)
+    stop
+;;
+	restart)
+	stop
+	sleep 2
+	start
+;;
+	status)
+    status
+;;
+	prot)
+	viewPort
+;;
+	*)
+	echo "Usage: $0 {start|stop|restart|status|port|fstart}"
+esac
+

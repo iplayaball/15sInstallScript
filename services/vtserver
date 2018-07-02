@@ -1,0 +1,194 @@
+#!/bin/bash
+#chkconfig: 2345 70 19
+#description: vtserver
+
+alias grep='grep --color=auto'
+alias egrep='egrep --color=auto'
+
+serverName='虚拟终端'
+grepProtKey="./protect.sh"
+grepVtKey="\-Djetty.home=/home/fx/vtserver/wujing"
+grepStreamKey="(MB)?Stream(Sub)?Server"
+
+vtHome=/home/fx/vtserver
+vtWebHome=$vtHome/wujing
+streamHome=$vtWebHome/FxStreamServer
+
+#函数
+function redEcho(){
+    echo -e "\033[0;31;1m$1\033[0m"
+}
+
+function grepProcess(){
+    ps -eo pid,lstart,etime,args |grep -v grep |egrep -w "$1"
+}
+
+#测试
+#grepProcess "$grepProtKey"
+#grepProcess "$grepVtKey"
+#grepProcess "$grepStreamKey"
+#exit 0
+
+#检测进程是否存在
+function hasProtPid(){
+    protPid=`grepProcess $grepProtKey |awk '{print$1}'`
+    #echo "进程号：protPid=$protPid"
+    if [ "$protPid" == "" ]; then
+        return 1
+    else
+        return 0
+    fi
+}
+function hasVtPid(){
+    vtPid=`grepProcess $grepVtKey |awk '{print$1}'`
+    #echo "进程号：vtPid=$vtPid"
+    if [ "$vtPid" == "" ]; then
+        return 1
+    else
+        return 0
+    fi
+}
+function hasStreamPid(){
+    streamPid=`grepProcess $grepStreamKey |awk '{print$1}'`
+    #echo 进程号：streamPid=${streamPid}
+    if [ "$streamPid" == "" ]; then
+        return 1
+    else
+        return 0
+    fi
+}
+
+#测试
+#hasProtPid
+#hasVtPid
+#hasStreamPid
+#exit 0
+
+function status(){
+    if hasProtPid || hasVtPid || hasStreamPid; then
+        #echo "$serverName is `redEcho running`"
+		grepProcess "$grepProtKey"
+		grepProcess "$grepVtKey"
+		grepProcess "$grepStreamKey"
+		#echo "log file: $logFile"
+	else
+		echo "$serverName 进程不存在！"
+	fi
+}
+
+function stopProt(){
+	if hasProtPid; then
+		kill $protPid
+		sleep 3
+		if hasProtPid; then
+			kill -9 $protPid
+			sleep 5
+			if hasProtPid; then
+				echo "停止 ${serverName}守护进程 失败！"
+				exit 3
+			fi
+		fi
+		echo "停止 ${serverName}守护进程 成功"
+	fi
+}
+function stopVT(){
+    if hasVtPid; then
+        /home/fx/vtserver/wujing/bin/jetty.sh stop
+        sleep 2
+        if hasVtPid; then
+            kill -9 $vtPid
+            sleep 3
+            if hasVtPid; then
+                echo "停止 $serverName 失败！"
+                exit 3
+            fi
+        fi
+		echo "停止 $serverName 成功"
+	fi
+}
+function stopStream(){
+    if hasStreamPid; then
+        kill -9 $streamPid
+        sleep 3
+        if hasStreamPid; then
+            kill -9 $streamPid
+            sleep 3
+            if hasStreamPid; then
+                echo "停止 ${serverName}代理程序 失败！"
+                exit 3
+            fi
+        fi
+		echo "停止 ${serverName}代理程序 成功"
+    fi
+}
+
+function stopAll(){
+    stopProt
+    stopVT
+    stopStream
+}
+startLog=$vtHome/startjava.log
+function startAll(){
+	source /etc/profile
+	echo "--->`date`" &>>$startLog
+
+	sh $streamHome/start.sh 1>>$startLog
+	sleep 2
+	if hasStreamPid; then
+		echo "启动 ${serverName}代理程序 成功"
+	else
+		echo "启动 ${serverName}代理程序 失败！"
+		exit 1
+	fi
+
+	rm -fv $vtWebHome/run/jetty.pid 1>>$startLog
+	sh $vtWebHome/bin/jetty.sh start 1>>$startLog
+	if hasVtPid; then
+		echo "启动 $serverName 成功"
+	else
+		echo "启动 $serverName 失败！"
+		exit 1
+	fi
+
+	cd /home/fx/vtserver
+	(./protect.sh &) 1>>$startLog
+	if hasProtPid; then
+		echo "启动 ${serverName}守护进程 成功"
+	else
+		echo "启动 ${serverName}守护进程 失败！"
+		exit 1
+	fi
+
+	echo "启动 $serverName 完毕"
+	echo "启动日志：$startLog"
+	#echo "进程运行状态如下："
+	#status
+}
+function restartAll(){
+	stopAll
+	sleep 2
+	startAll
+}
+
+case "$1" in
+	stop)
+	stopAll
+;;
+	start)
+	hasProtPid && stopProt
+	hasVtPid && stopVT
+	hasStreamPid && stopStream && sleep 2
+		
+	startAll
+;;
+	restart)
+	restartAll
+;;
+	status)
+	status
+;;
+	*)
+	echo "Usage: $0 {start|stop|restart|status}"
+;;
+esac
+

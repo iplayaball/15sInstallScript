@@ -1,0 +1,106 @@
+#!/bin/bash
+#chkconfig: 2345 87 24
+#description: snmpAgent
+
+alias grep='grep --color=auto'
+alias egrep='egrep --color=auto'
+
+serverName='snmpAgent'
+grepKey="fxSnmpAgent\.jar"
+#logFile=
+
+##函数
+function redEcho(){
+    echo -e "\033[0;31;1m$1\033[0m"
+}
+
+function grepProcess(){
+    ps -eo pid,lstart,etime,args |grep -v grep |egrep -w "$grepKey"
+}
+
+#检测进程是否存在
+function hasPid(){
+    pid=`grepProcess |awk '{print$1}'`
+	#echo "process id: $pid"
+    if [ "$pid" == "" ]; then
+        return 1
+    else
+        return 0
+    fi
+}
+
+function viewPort(){
+    if hasPid; then
+		netstat -anput |grep -w $pid 
+	else
+        echo "$serverName process not exist"
+	fi
+}
+
+function status(){
+    if hasPid; then
+        echo "$serverName is `redEcho running`"
+		grepProcess
+		#echo "log file: $logFile"
+	else
+        echo "$serverName process not exist"
+	fi
+}
+
+function stop(){
+    if hasPid; then
+        kill $pid
+        sleep 2
+        if hasPid; then
+            kill -9 $pid
+            sleep 3
+            if hasPid; then
+                echo "$serverName stop fail"
+                exit 3
+            fi
+        fi
+        echo "$serverName stop success"
+    else
+        echo "$serverName process not exist"
+    fi
+}
+
+function start(){
+    if hasPid; then
+        echo "$serverName already running"
+		status
+	else
+		java -jar /usr/local/bin/fxSnmpAgent.jar &
+		sleep 3
+		if hasPid; then
+			echo "$serverName start success"
+			#status
+		else
+			echo "$serverName stop fail"
+		fi
+	fi
+}
+
+
+case "$1" in
+	start)
+	start
+;;
+	stop)
+    stop
+;;
+	restart)
+	stop
+	sleep 2
+	start
+;;
+	status)
+    status
+;;
+	port)
+	viewPort
+;;
+	*)
+	echo "Usage: $0 {start|stop|restart|status|port}"
+esac
+
