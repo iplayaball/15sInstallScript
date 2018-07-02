@@ -7,10 +7,12 @@ flag=$2
 fxHome=/home/fx
 vtHome=$fxHome/vtserver
 jettyHome=$vtHome/wujing
+voipClient=$jettyHome/voipClient.cfg
+cfgpr=$jettyHome/fx_digital/config/config.properties
+
 strPath=$jettyHome/FxStreamServer
 cfgxml=$strPath/config.xml
-vocfg=$strPath/voipserver.cfg
-cfgpr=$jettyHome/fx_digital/config/config.properties
+voipserver=$strPath/voipserver.cfg
 
 logFile=/mnt/install.log
 #日志
@@ -21,7 +23,7 @@ elif [ "$flag" == "update" ]; then
 else
     echo -e "\n\n#deploy-vtserver\n`date`" &>>$logFile
 fi
-echo "-->$0 $*" &>>$logFile
+echo ***$0 $* &>>$logFile
 
 #函数定义
 #检测进程是否存在
@@ -115,14 +117,21 @@ function stopVt(){
 create_rsyncCmdFile(){
     cat > $rsync_cmd_sh <<eof
 cd $vtHome
+
+#下面是一条rsync命令
 rsync -e 'ssh -o stricthostkeychecking=no' -av \\
-    --exclude wujing/database \\
-    --exclude startjava.log --exclude MBStreamServer.txt --exclude vtserverJetty.txt\\
-    --exclude wujing/logs --exclude wujing/work --exclude wujing/start.log --exclude wujing/run --exclude wujing/jetty.state \\
-    --exclude wujing/FxStreamServer/SmartSeeEngineMain.log \\
-    --exclude wujing/FxStreamServer/SmartSeeEngineSub_1.log --exclude wujing/FxStreamServer/SmartSeeEngineSub_2.log \\
-    --exclude wujing/FxStreamServer/voipclient.log --exclude wujing/FxStreamServer/voipclient.log.old \\
-    $hubIP:$packages/vtserver $fxHome/
+	--exclude wujing/database \\
+		--exclude wujing/fx_digital/config/config.properties \\
+		--exclude startjava.log --exclude MBStreamServer.txt --exclude vtserverJetty.txt \\
+		--exclude wujing/logs --exclude wujing/work --exclude wujing/start.log \\
+		--exclude wujing/run --exclude wujing/jetty.state \\
+	--exclude wujing/FxStreamServer/SmartSeeEngine.log \\
+		--exclude wujing/FxStreamServer/SmartSeeEngineMain.log \\
+		--exclude wujing/FxStreamServer/SmartSeeEngineSub_1.log \\
+		--exclude wujing/FxStreamServer/SmartSeeEngineSub_2.log \\
+		--exclude wujing/FxStreamServer/voipclient.log \\
+		--exclude wujing/FxStreamServer/voipclient.log.old \\
+$hubIP:$packages/vtserver $fxHome/
 eof
 }
 
@@ -193,6 +202,10 @@ if [ "$flag" ];  then
         echo "开始修改vt配置文件中的IP" &>>$logFile
     elif [ "$flag" == "update" ]; then
         #升级
+        ##升级前将虚拟终端代理的配置文件voipserver.cfg的registerIP参数读取出来当做 natIP
+        natIP=`awk -F'=' '{if($1~/^registerIP/) print$2}' $voipserver`
+        echo "读取natIP为 $natIP" &>>$logFile
+
         echo "开始升级vt程序的所有文件" &>>$logFile
         #rm -rfv /mnt/database &>>$logFile
         #mv -v $jettyHome/database /mnt/ &>>$logFile
@@ -206,12 +219,7 @@ if [ "$flag" ];  then
         cat $rsync_cmd_sh &>>$logFile
         echo '=============================' &>>$logFile
 
-        #升级虚拟终端,提前将虚拟终端的localBindIP参数读取出来
-        localBindIP=`awk -F'=' '{if($1~/^localBindIP/) print$2}' $vocfg`
-        echo "读取localBindIP为 $localBindIP" &>>$logFile
         auto_rsync &>>$logFile
-        echo "修改localBindIP为 $localBindIP" &>>$logFile
-        sed -i "/^localBindIP=/ s/=.*/=$localBindIP/" $vocfg
 
         rm -rf $jettyHome/work/*
     fi
@@ -227,25 +235,61 @@ chmod -R 755 $vtHome
 #修改配置文件
 if [ $localIP ]; then
     iptest $localIP
-    echo "传入的IP是 localIP:$localIP" &>>$logFile
-    sed -i "/<RestServerAddress>http:/ s#//.*:#//$localIP:#" $cfgxml
 
+	#安装时没有传入natIP，所以让natIP等于本地系统IP
+	#升级时的natIP是上面读出来的
+	if [ -z "$natIP" ]; then
+		natIP=$localIP
+	fi
+
+    echo -e "\n" &>>$logFile
+
+    #vt的配置文件
+    ##修改第一个配置文件 ----->暂时不用修改
+    #sed -i "/^host=/ s/=.*/=$localIP/" $cfgpr
+    ##修改后的查看
+    #echo $cfgpr &>>$logFile
+    #grep  "^host=" $cfgpr &>>$logFile
+
+    ##修改第二个配置文件
+	##本地系统IP
     sed -i "
-    /^fromAddr=/ s/=.*/=$localIP/;
-    /^localIP=/ s/=.*/=$localIP/;
-    /^registerIP=/ s/=.*/=$localIP/;
-    /^restServerIp=/ s/=.*/=$localIP/
-    " $vocfg
-    
-    sed -i "/^host=/ s/=.*/=$localIP/" $cfgpr
+		/^localBindIP=/ s/=.*/=$localIP/;
+    " $voipClient
+	##本节点natIP
+    sed -i "
+		/^fromAddr=/ s/=.*/=$natIP/;
+		/^localIP=/ s/=.*/=$natIP/;
+		/^registerIP=/ s/=.*/=$natIP/;
+    " $voipClient
+    #修改后的查看
+    echo "vt的配置文件修改结果如下：" &>>$logFile
+    echo $voipClient &>>$logFile
+    egrep "^(fromAddr=|localIP=|localBindIP=|registerIP=)" $voipClient &>>$logFile
 
-    echo "vtserver配置文件修改结果如下：" &>>$logFile
+    #vt代理的配置文件
+    ##修改第一个配置文件
+	##本地系统IP
+    sed -i "
+		/^localBindIP=/ s/=.*/=$localIP/;
+		/^restServerIp=/ s/=.*/=$localIP/;
+    " $voipserver
+	##本节点natIP
+    sed -i "
+		/^fromAddr=/ s/=.*/=$natIP/;
+		/^localIP=/ s/=.*/=$natIP/;
+		/^registerIP=/ s/=.*/=$natIP/;
+    " $voipserver
+    ##修改后的查看
+    echo "vt代理的配置文件修改结果如下：" &>>$logFile
+    echo $voipserver &>>$logFile
+    egrep "^(fromAddr=|localIP=|localBindIP=|registerIP=|restServerIp=)" $voipserver &>>$logFile
+    
+    ##修改第二个配置文件
+    sed -i "/<RestServerAddress>http:/ s#//.*:#//$localIP:#" $cfgxml
+    ##修改后的查看
     echo $cfgxml &>>$logFile
     grep "<RestServerAddress>http:" $cfgxml &>>$logFile
-    echo $vocfg &>>$logFile
-    egrep "^(fromAddr=|localIP=|registerIP=|restServerIp=)" $vocfg &>>$logFile
-    echo $cfgpr &>>$logFile
-    grep  "^host=" $cfgpr &>>$logFile
     echo -e '\n' &>>$logFile
 fi
 

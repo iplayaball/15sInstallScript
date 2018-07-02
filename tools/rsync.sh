@@ -1,5 +1,7 @@
 #!/usr/bin/expect
 
+#暂时没有使用
+
 set timeout -1
 set host [lindex $argv 0]
 set username root

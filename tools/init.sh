@@ -4,7 +4,7 @@ fxHome=/home/fx
 scriptPath=/opt/installScript
 toolsPath=$scriptPath/tools
 dcp=$toolsPath/dcp.sh
-rsync_sh=$toolsPath/rsync.sh
+#rsync_sh=$toolsPath/rsync.sh 暂时不使用
 rsync_cmd_sh=$toolsPath/rsync_cmd.sh
 packages=/home/fx/1409_installServer/packages
 logFile=/mnt/install.log
@@ -32,7 +32,7 @@ auto_rsync () {
     expect -c "set timeout -1;
                 spawn sh $rsync_cmd_sh;
                 expect {
-                    *assword:* {send -- 123456\r;
+                    *assword:* {send -- 123123\r;
                                  expect {
                                     *denied* {exit 1;}
                                     eof
